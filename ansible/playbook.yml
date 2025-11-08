@@ -1,15 +1,6 @@
-- name: Deploy da Aplicação com Docker
+- name: Deploy da Aplicação Nginx (Atividade 1)
   hosts: all
-  become: yes
-  gather_facts: yes # Habilitar para pegar a variável ansible_distribution_release
-
-  handlers:
-    - name: Start Docker Service
-      service:
-        name: docker
-        state: started
-        enabled: yes
-
+  become: yes # Executar comandos como sudo
   tasks:
     - name: "Instalar pré-requisitos (apt, git, python-pip)"
       apt:
@@ -38,17 +29,10 @@
         name: docker-ce
         state: present
         update_cache: yes
-      notify: Start Docker Service
 
     - name: "Instalar Docker SDK para Ansible"
       pip:
         name: docker
-
-    - name: "Adicionar usuário ao grupo docker"
-      user:
-        name: "{{ ansible_user }}"
-        groups: docker
-        append: yes
 
     - name: "Garantir que o serviço Docker está rodando"
       service:
@@ -56,65 +40,45 @@
         state: started
         enabled: yes
 
-    - name: "Reset SSH connection para aplicar mudanças de grupo"
-      meta: reset_connection
+    # --- INÍCIO DAS TAREFAS DE CORREÇÃO ---
+    
+    - name: "Adicionar usuário 'azureuser' ao grupo 'docker'"
+      user:
+        name: azureuser  # Usuário padrão da VM
+        groups: docker
+        append: yes
 
-    - name: "Verificar se Docker está funcionando"
-      command: docker info
-      become: yes
-      register: docker_info
-      
-    - name: "Criar rede Docker para a aplicação"
-      command: docker network create app_network --driver bridge
-      become: yes
-      ignore_errors: yes  # Ignora erro se a rede já existir
+    - name: "Reiniciar a VM para aplicar mudanças de grupo"
+      reboot:
+        msg: "Reiniciando para aplicar mudanças no grupo Docker"
+        connect_timeout: 5
+        reboot_timeout: 300
+        pre_reboot_delay: 0
+        post_reboot_delay: 60
+        test_command: whoami
 
-    - name: "Criar diretório para o código-fonte"
-      file:
-        path: "/opt/app_source"
-        state: directory
+    # --- FIM DAS TAREFAS DE CORREÇÃO ---
 
-    # --- Backend ---
-    - name: "Clonar repositório do Backend (branch: {{ app_config.backend.branch }})"
+    - name: "Clonar repositório da aplicação Nginx"
       git:
-        repo: "{{ app_config.backend.repo }}"
-        dest: "/opt/app_source/backend"
-        version: "{{ app_config.backend.branch }}"
+        # !!! ATENÇÃO: SUBSTITUA PELA URL DO SEU REPOSITÓRIO !!!
+        repo: "https://github.com/TDOV/Dockerfille"
+        dest: "/opt/app_source"
+        version: main
         force: yes
 
-    - name: "Buildar imagem Docker do Backend"
-      command: docker build -t {{ app_config.backend.container_name }}:latest /opt/app_source/backend
-      become: yes
+    - name: "Construir imagem Docker da aplicação Nginx"
+      command: docker build -t meu-nginx-app:latest .
+      args:
+        chdir: /opt/app_source
 
-    - name: "Iniciar container do Backend"
+    - name: "Parar e remover container antigo, se existir"
+      command: docker rm -f meu-site-nginx
+      ignore_errors: yes
+
+    - name: "Iniciar container Nginx"
       command: >
-        docker run -d --name {{ app_config.backend.container_name }}
-        --network app_network
-        --restart always
-        -p 8080:8080
-        {{ app_config.backend.container_name }}:latest
-      become: yes
-      ignore_errors: yes  # Ignora erro se container já existir
-
-    # --- Frontend ---
-    - name: "Clonar repositório do Frontend (branch: {{ app_config.frontend.branch }})"
-      git:
-        repo: "{{ app_config.frontend.repo }}"
-        dest: "/opt/app_source/frontend"
-        version: "{{ app_config.frontend.branch }}"
-        force: yes
-
-    - name: "Buildar imagem Docker do Frontend"
-      command: docker build -t {{ app_config.frontend.container_name }}:latest /opt/app_source/frontend
-      become: yes
-
-    - name: "Iniciar container do Frontend"
-      command: >
-        docker run -d --name {{ app_config.frontend.container_name }}
-        --network app_network
+        docker run -d --name meu-site-nginx
         --restart always
         -p 80:80
-        -e BACKEND_URL=http://{{ app_config.backend.container_name }}:8080
-        {{ app_config.frontend.container_name }}:latest
-      become: yes
-      ignore_errors: yes  # Ignora erro se container já existir
+        meu-nginx-app:latest

@@ -1,0 +1,2 @@
+[azure_vm]
+ 130.131.82.12 ansible_user=azureuser ansible_ssh_private_key_file=~/.ssh/projeto_rsa.pub
