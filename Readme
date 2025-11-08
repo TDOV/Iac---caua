@@ -1,0 +1,161 @@
+📝 README: Infraestrutura e Automação da Aplicação
+
+Este projeto utiliza Terraform para provisionar a infraestrutura na Azure e Ansible para automatizar o deploy (entrega) da aplicação em contêineres Docker.
+
+💻 1. Componentes de Infraestrutura (Terraform)
+
+Os arquivos Terraform (main.tf, variables.tf, outputs.tf) definem e provisionam os recursos básicos necessários no Microsoft Azure.
+
+terraform/main.tf
+
+Este arquivo é o núcleo da infraestrutura e define os seguintes recursos:
+
+    Provedor (azurerm): Utiliza a versão ~> 3.0 do provedor Azure.
+
+Rede Virtual (azurerm_virtual_network): Cria uma VNet chamada vnet-pratica com o espaço de endereço 10.0.0.0/16.
+
+Sub-rede (azurerm_subnet): Cria uma sub-rede chamada subnet-pratica com o prefixo de endereço 10.0.1.0/24.
+
+IP Público (azurerm_public_ip): Cria um IP Público chamado pip-pratica-vm com método de alocação Static e SKU Standard.
+
+Grupo de Segurança de Rede (NSG): Cria nsg-pratica com duas regras de segurança de entrada (Inbound):
+
+    AllowSSH: Permite tráfego TCP na porta 22 (SSH) de qualquer origem (*).
+
+AllowHTTP: Permite tráfego TCP na porta 80 (HTTP) de qualquer origem (*).
+
+Interface de Rede (azurerm_network_interface): Cria nic-pratica-vm, associando-a à sub-rede e ao IP público provisionados.
+
+Associação NSG: Conecta o NSG (nsg-pratica) à interface de rede.
+
+Máquina Virtual Linux (azurerm_linux_virtual_machine):
+
+    Nome: vm-pratica.
+
+Tamanho: Definido pela variável var.vm_size.
+
+Imagem Base: Ubuntu Server 22.04 LTS (Jammy).
+
+Autenticação: Utiliza uma chave SSH pública, cujo caminho é fornecido pela variável var.ssh_public_key_path.
+
+terraform/variables.tf
+
+Define as variáveis de entrada necessárias para o provisionamento do Terraform:
+Variável	Tipo	Descrição	Valor Padrão (Default)
+resource_group_name	
+
+string
+
+	
+
+O nome do grupo de recursos.
+
+	(Nenhum)
+location	
+
+string
+	
+
+	
+
+A região do Azure.
+
+	(Nenhum)
+vm_size	
+
+string
+	
+
+	Tamanho da VM.	
+
+Standard_B2s
+
+admin_username	
+
+string
+	
+
+	Nome de usuário administrador da VM.	
+
+azureuser
+
+ssh_public_key_path	
+
+string
+	
+
+	
+
+Caminho para a chave pública SSH.
+
+	(Nenhum)
+
+terraform/outputs.tf
+
+Define os valores que são retornados após a execução do Terraform, sendo o principal:
+
+    public_ip_address: O endereço de IP público da Máquina Virtual , obtido do recurso azurerm_linux_virtual_machine.vm.
+
+gitignore
+
+Lista arquivos que não devem ser versionados pelo Git, incluindo arquivos de estado do Terraform (terraform.tfstate, .terraform, etc.) e credenciais (azure_credentials.txt, terraform.tfvars).
+
+🛠️ 2. Automação da Aplicação (Ansible)
+
+Os arquivos Ansible são responsáveis por configurar o ambiente na VM provisionada e realizar o deploy da aplicação em Docker.
+
+ansible/playbook.yml
+
+Este playbook é o roteiro de automação, executando as seguintes etapas na VM (hosts: all):
+
+    Instalação do Docker: Instala os pré-requisitos (apt, git, python3-pip), adiciona o repositório oficial do Docker e instala o docker-ce.
+
+    Configuração do Docker: Instala o Docker SDK para Ansible (pip), adiciona o usuário ao grupo docker e garante que o serviço esteja rodando.
+
+    Preparação: Cria uma rede Docker chamada app_network e o diretório /opt/app_source.
+
+    Deploy do Backend:
+
+        Clona o repositório do backend (pratica-backend.git) no branch dev.
+
+        Faz o build da imagem Docker.
+
+        Inicia o contêiner na porta 8080 dentro da app_network.
+
+    Deploy do Frontend:
+
+        Clona o repositório do frontend (pratica-frontend.git) no branch dev.
+
+        Faz o build da imagem Docker.
+
+        Inicia o contêiner na porta 80 (permitindo acesso via navegador) dentro da app_network, passando a URL do backend como variável de ambiente (BACKEND_URL=http://pratica-backend:8080).
+
+ansible/group_vars/all.yml
+
+Define variáveis globais para o playbook:
+Componente	Variável	Valor
+Backend	repo	https://github.com/william-prof/pratica-backend.git
+	branch	dev
+	container_name	pratica-backend
+Frontend	repo	https://github.com/william-prof/pratica-frontend.git
+	branch	dev
+	container_name	pratica-frontend
+
+ansible/inventory/hosts.sample
+
+É um arquivo de inventário de exemplo para o Ansible, mostrando como conectar na VM via SSH:
+
+[azure_vm]
+<IP_DA_VM> ansible_user=<NOME_USUARIO> ansible_ssh_private_key_file=<CAMINHO_CHAVE_RSA>
+
+🌐 3. Arquivos Web (Estático)
+
+O arquivo index.html é um esqueleto de página web simples.
+
+index.html
+
+    Propósito: É a página inicial (Home) de um site simples.
+
+    Estrutura: Contém um título principal e uma barra de navegação com links para index.html, about.html, lorenzo.html e heitor.html.
+
+    Estilo: Faz referência a um arquivo de estilos style.css (não fornecido).
